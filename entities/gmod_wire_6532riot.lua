@@ -14,6 +14,8 @@ function ENT:Initialize()
     self.riotDivider = 1
     self.riotCyclesLeft = 0
     self.riotInterrupt = false
+    self.portAMask = 0
+    self.portBMask = 0
     self.RAM = {}
     for i=0,127 do
         self.RAM[i] = 0
@@ -120,7 +122,7 @@ function ENT:ReadCell(index)
     local chip2 = bit.band(0x200,index) ~= 0
     if not chip1 or chip2 then return 0 end
     if chip1 then
-        index = index - 0x180
+        index = index - 0x80
         if not ramswitch then
             return self.RAM[index]
         end
@@ -220,4 +222,4 @@ function ENT:ApplyDupeInfo(ply, ent, info, GetEntByID)
 	ent:UpdateOverlayText()
 end
 
-duplicator.RegisterEntityClass("gmod_wire_6502", WireLib.MakeWireEnt, "Data")
+duplicator.RegisterEntityClass("gmod_wire_6532riot", WireLib.MakeWireEnt, "Data")

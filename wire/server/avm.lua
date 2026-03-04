@@ -724,7 +724,6 @@ function AVM:Reset()
     self.ps = bor(IF, UF)
     self.sp = 0xFD
     self.pc = self:MRead16(0xFFFC)
-    print(self.pc)
     self.cycles = 0
     self.extraCycles = 0
 end
@@ -858,45 +857,50 @@ AVM.New = function(AddressRemaps)
         vm.frameBuffer[i] = 0
     end
     local one,zero = 1,0
+    local disabled = -1
     for i=1,4 do
         local curCache = {}
         vm.AddressCache[i] = curCache
         local currentRemap = AddressRemaps[i]
         for i=0,65535 do
-            local b0 = band(i,1) and one or zero
-            local b1 = band(i,2) and one or zero
-            local b2 = band(i,4) and one or zero
-            local b3 = band(i,8) and one or zero
-            local b4 = band(i,16) and one or zero
-            local b5 = band(i,32) and one or zero
-            local b6 = band(i,64) and one or zero
-            local b7 = band(i,128) and one or zero
-            local b8 = band(i,256) and one or zero
-            local b9 = band(i,512) and one or zero
-            local b10 = band(i,1024) and one or zero
-            local b11 = band(i,2048) and one or zero
-            local b12 = band(i,4096) and one or zero
-            local b13 = band(i,8192) and one or zero
-            local b14 = band(i,16384) and one or zero
-            local b15 = band(i,32768) and one or zero
-            local t = {b0,b1,b2,b3,b4,b5,b6,b7,b8,b9,b11,b12,b13,b14,b15}
+            local b0 = band(i,1) ~= 0 and one or zero
+            local b1 = band(i,2) ~= 0 and one or zero
+            local b2 = band(i,4) ~= 0 and one or zero
+            local b3 = band(i,8) ~= 0 and one or zero
+            local b4 = band(i,16) ~= 0 and one or zero
+            local b5 = band(i,32) ~= 0 and one or zero
+            local b6 = band(i,64) ~= 0 and one or zero
+            local b7 = band(i,128) ~= 0 and one or zero
+            local b8 = band(i,256) ~= 0 and one or zero
+            local b9 = band(i,512) ~= 0 and one or zero
+            local b10 = band(i,1024) ~= 0 and one or zero
+            local b11 = band(i,2048) ~= 0 and one or zero
+            local b12 = band(i,4096) ~= 0 and one or zero
+            local b13 = band(i,8192) ~= 0 and one or zero
+            local b14 = band(i,16384) ~= 0 and one or zero
+            local b15 = band(i,32768) ~= 0 and one or zero
+
+            local t = {
+                [0] = b0,
+                b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15
+            }
             local curd = 0
             curd = bor(curd,t[currentRemap[1] or zero] or zero)
-            curd = bor(curd,blshift(t[currentRemap[2] ~= -1 and currentRemap[2] or zero] or zero,01))
-            curd = bor(curd,blshift(t[currentRemap[3] ~= -1 and currentRemap[3] or zero] or zero,02))
-            curd = bor(curd,blshift(t[currentRemap[4] ~= -1 and currentRemap[4] or zero] or zero,03))
-            curd = bor(curd,blshift(t[currentRemap[5] ~= -1 and currentRemap[5] or zero] or zero,04))
-            curd = bor(curd,blshift(t[currentRemap[6] ~= -1 and currentRemap[6] or zero] or zero,05))
-            curd = bor(curd,blshift(t[currentRemap[7] ~= -1 and currentRemap[7] or zero] or zero,06))
-            curd = bor(curd,blshift(t[currentRemap[8] ~= -1 and currentRemap[8] or zero] or zero,07))
-            curd = bor(curd,blshift(t[currentRemap[9] ~= -1 and currentRemap[9] or zero] or zero,08))
-            curd = bor(curd,blshift(t[currentRemap[10] ~= -1 and currentRemap[10] or zero] or zero,09))
-            curd = bor(curd,blshift(t[currentRemap[11] ~= -1 and currentRemap[11] or zero] or zero,10))
-            curd = bor(curd,blshift(t[currentRemap[12] ~= -1 and currentRemap[12] or zero] or zero,11))
-            curd = bor(curd,blshift(t[currentRemap[13] ~= -1 and currentRemap[13] or zero] or zero,12))
-            curd = bor(curd,blshift(t[currentRemap[14] ~= -1 and currentRemap[14] or zero] or zero,13))
-            curd = bor(curd,blshift(t[currentRemap[15] ~= -1 and currentRemap[15] or zero] or zero,14))
-            curd = bor(curd,blshift(t[currentRemap[16] ~= -1 and currentRemap[16] or zero] or zero,15))
+            curd = bor(curd,blshift(t[currentRemap[02] ~= disabled and currentRemap[02] or disabled] or zero,01))
+            curd = bor(curd,blshift(t[currentRemap[03] ~= disabled and currentRemap[03] or disabled] or zero,02))
+            curd = bor(curd,blshift(t[currentRemap[04] ~= disabled and currentRemap[04] or disabled] or zero,03))
+            curd = bor(curd,blshift(t[currentRemap[05] ~= disabled and currentRemap[05] or disabled] or zero,04))
+            curd = bor(curd,blshift(t[currentRemap[06] ~= disabled and currentRemap[06] or disabled] or zero,05))
+            curd = bor(curd,blshift(t[currentRemap[07] ~= disabled and currentRemap[07] or disabled] or zero,06))
+            curd = bor(curd,blshift(t[currentRemap[08] ~= disabled and currentRemap[08] or disabled] or zero,07))
+            curd = bor(curd,blshift(t[currentRemap[09] ~= disabled and currentRemap[09] or disabled] or zero,08))
+            curd = bor(curd,blshift(t[currentRemap[10] ~= disabled and currentRemap[10] or disabled] or zero,09))
+            curd = bor(curd,blshift(t[currentRemap[11] ~= disabled and currentRemap[11] or disabled] or zero,10))
+            curd = bor(curd,blshift(t[currentRemap[12] ~= disabled and currentRemap[12] or disabled] or zero,11))
+            curd = bor(curd,blshift(t[currentRemap[13] ~= disabled and currentRemap[13] or disabled] or zero,12))
+            curd = bor(curd,blshift(t[currentRemap[14] ~= disabled and currentRemap[14] or disabled] or zero,13))
+            curd = bor(curd,blshift(t[currentRemap[15] ~= disabled and currentRemap[15] or disabled] or zero,14))
+            curd = bor(curd,blshift(t[currentRemap[16] ~= disabled and currentRemap[16] or disabled] or zero,15))
             curCache[i] = curd
         end
     end

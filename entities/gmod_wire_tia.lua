@@ -13,6 +13,7 @@ local floor = math.floor
 
 function ENT:BackupTIAState()
     return {
+        self.cycles,
         self.scanline,
         self.colubk,
         self.colupf,
@@ -34,6 +35,7 @@ function ENT:BackupTIAState()
 end
 
 function ENT:RestoreTIAState(state)
+    self.cycles,
     self.scanline,
     self.colubk,
     self.colupf,
@@ -59,6 +61,7 @@ if CLIENT then
         self:PhysicsInit(SOLID_VPHYSICS)
         self:SetMoveType(MOVETYPE_VPHYSICS)
         self:SetSolid(SOLID_VPHYSICS)
+        self.cycles = 0
         self.scanline = 0
         self.colubk = 0
         self.colupf = 0
@@ -81,6 +84,7 @@ if CLIENT then
         local TIA = net.ReadEntity()
         local screen = net.ReadEntity()
         local state = {
+            net.ReadInt(8),
             net.ReadInt(8),
             net.ReadInt(8),
             net.ReadInt(8),
@@ -182,6 +186,7 @@ function ENT:Initialize()
 	self:SetSolid(SOLID_VPHYSICS)
     self.Inputs = Wire_CreateInputs(self, {"Port A", "Frequency", "Reset", "RF A/V Out"})
     self.Outputs = Wire_CreateOutputs(self, {"Memory"})
+    self.cycles = 0
     self.RFScreens = {}
     self.scanline = 0
     self.colubk = 0
@@ -212,6 +217,10 @@ end
 function ENT:BuildDupeInfo()
 	local info = BaseClass.BuildDupeInfo(self) or {}
 	return info
+end
+
+function ENT:To4(n)
+    return bxor(band(n, 0xF), 0x8) - 0x8
 end
 
 function ENT:To8(value)
