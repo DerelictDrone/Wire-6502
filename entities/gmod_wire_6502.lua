@@ -32,7 +32,7 @@ function ENT:DeviceRead(index)
 	if d4 and d4.ReadCell then
 		v = bit.bor(v,d4:ReadCell(self.VM.AddressCache[4][index]))
 	end
-	return v
+	return 0
 end
 
 function ENT:DeviceWrite(index, value)
@@ -54,15 +54,24 @@ function ENT:DeviceWrite(index, value)
 	end
 end
 
+function ENT:TriggerInput(iname, value)
+    if iname == "Frequency" then
+        self.Frequency = value
+    end
+	if iname == "Reset" then
+		self.VM:Reset()
+	end
+end
+
 function ENT:Think()
 	local vm = self.VM
-	local target = vm.cycles + 19886
+	local target = vm.cycles + (self.Frequency or 0)
 	while vm.cycles < target do
 		vm:Step()
 	end
 end
 
-function ENT:Setup(d1pins,d2pins,d3pins,d4pins,zeropagemask)
+function ENT:Setup(d1pins,d2pins,d3pins,d4pins)
 	self:UpdateOverlayText()
 	local d1 = {}
 	local d2 = {}
@@ -81,7 +90,7 @@ function ENT:Setup(d1pins,d2pins,d3pins,d4pins,zeropagemask)
 	for m in string.gmatch(d4pins,"%-*%d+") do
 		table.insert(d4,tonumber(m))
 	end
-	self.VM = AVM.New(DPins,zeropagemask)
+	self.VM = AVM.New(DPins)
 	self.VM.DeviceRead = self.DeviceRead
 	self.VM.DeviceWrite = self.DeviceWrite
 	self.VM.Entity = self

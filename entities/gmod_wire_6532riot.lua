@@ -118,7 +118,7 @@ function ENT:ReadCell(index)
     local chip1 = bit.band(0x80,index) ~= 0
     local ramswitch = bit.band(0x100,index) ~= 0
     local chip2 = bit.band(0x200,index) ~= 0
-    if not chip1 and not chip2 then return 0 end
+    if not chip1 or chip2 then return 0 end
     if chip1 then
         index = index - 0x180
         if not ramswitch then
@@ -146,19 +146,8 @@ function ENT:ReadCell(index)
                 return self:ReadInterrupt()
             end
         end
-    elseif chip2 then
-        if index == 0x0 then return self:ReadPortA() end
-        if index == 0x1 then return self.portAMask end
-        if index == 0x2 then return self:ReadPortB() end
-        if index == 0x3 then return self.portBMask end
-        if index == 0x4 then
-            self.tInterruptEnabled = false
-            return self.riotTimer
-        end
-        if index == 0x5 then return self:ReadInterrupt() end
-        if index == 0xC then return self.riotTimer end
     end
-    return math.random(0,0xFF)
+    return 0
 end
 
 local dividers = {
@@ -175,7 +164,7 @@ function ENT:WriteCell(index, value)
     local chip1 = band(0x80,index) ~= 0
     local ramswitch = band(0x100,index) ~= 0
     local chip2 = band(0x200,index) ~= 0
-    if not chip1 and not chip2 then return end
+    if not chip1 or chip2 then return end
     if chip1 then
         index = index - 0x180
         if not ramswitch then

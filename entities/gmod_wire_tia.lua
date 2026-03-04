@@ -1,26 +1,7 @@
 AddCSLuaFile()
 DEFINE_BASECLASS("base_wire_entity")
-ENT.PrintName     = "6532 RAM I/O-TIMER"
-ENT.WireDebugName = "6532 RIOT"
-
-if CLIENT then return end -- No more client
-
-function ENT:Initialize()
-	BaseClass.Initialize(self)
-	self:PhysicsInit(SOLID_VPHYSICS)
-	self:SetMoveType(MOVETYPE_VPHYSICS)
-	self:SetSolid(SOLID_VPHYSICS)
-    self.riotTimer = 0
-    self.riotDivider = 1
-    self.riotCyclesLeft = 0
-    self.riotInterrupt = false
-    self.RAM = {}
-    for i=0,127 do
-        self.RAM[i] = 0
-    end
-    self.Inputs = Wire_CreateInputs(self, {"Port A", "Frequency", "Reset"})
-    self.Outputs = Wire_CreateOutputs(self, {"Memory", "RF A/V Out"})
-end
+ENT.PrintName     = "T.I.A Television Interface Adapter"
+ENT.WireDebugName = "TIA"
 
 local bor = bit.bor
 local band = bit.band
@@ -29,6 +10,197 @@ local bnot = bit.bnot
 local lshift = bit.lshift
 local rshift = bit.rshift
 local floor = math.floor
+
+function ENT:BackupTIAState()
+    return {
+        self.scanline,
+        self.colubk,
+        self.colupf,
+        self.colup0,
+        self.colup1,
+        self.vsync,
+        self.vblank,
+        self.pf0,
+        self.pf1,
+        self.pf2,
+        self.grp0,
+        self.grp1,
+        self.resp0,
+        self.resp1,
+        self.hmp0,
+        self.hmp1,
+        self.ctrlpf
+    }
+end
+
+function ENT:RestoreTIAState(state)
+    self.scanline,
+    self.colubk,
+    self.colupf,
+    self.colup0,
+    self.colup1,
+    self.vsync,
+    self.vblank,
+    self.pf0,
+    self.pf1,
+    self.pf2,
+    self.grp0,
+    self.grp1,
+    self.resp0,
+    self.resp1,
+    self.hmp0,
+    self.hmp1,
+    self.ctrlpf = unpack(state)
+end
+
+if CLIENT then
+    function ENT:Initialize()
+        BaseClass.Initialize(self)
+        self:PhysicsInit(SOLID_VPHYSICS)
+        self:SetMoveType(MOVETYPE_VPHYSICS)
+        self:SetSolid(SOLID_VPHYSICS)
+        self.scanline = 0
+        self.colubk = 0
+        self.colupf = 0
+        self.colup0 = 0
+        self.colup1 = 0
+        self.vsync  = 0
+        self.vblank = 0
+        self.pf0 = 0
+        self.pf1 = 0
+        self.pf2 = 0
+        self.grp0 = 0
+        self.grp1 = 0
+        self.resp0 = 0
+        self.resp1 = 0
+        self.hmp0 = 0
+        self.hmp1 = 0
+        self.ctrlpf = 0
+    end
+    net.Receive("tia_scanline_screen",function(len,ply)
+        local TIA = net.ReadEntity()
+        local screen = net.ReadEntity()
+        local state = {
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+            net.ReadInt(8),
+        }
+        TIA:RestoreState(state)
+        TIA:RenderScanline(screen)
+    end)
+    function ENT:RenderScanline(targetEnt)
+        if self.scanline >= 192 then return end
+    
+        if band(self.vblank, 0x02) ~= 0 then
+            self.scanline = self.scanline + 1
+            return
+        end
+    
+        local base = self.scanline * 160
+        local bg = self.colubk
+        local pf = self.colupf
+    
+        for x = 0, 159 do
+            local tile = floor(x / 4)
+            local pixel = 0
+            local pos
+    
+            if tile < 20 then
+                if tile < 4 then
+                    pos = tile + 4
+                    pixel = band(rshift(self.pf0, pos), 1)
+                elseif tile < 12 then
+                    pos = 7 - ((tile - 4) % 8)
+                    pixel = band(rshift(self.pf1, pos), 1)
+                else
+                    pos = (tile - 12) % 8
+                    pixel = band(rshift(self.pf2, pos), 1)
+                end
+            else
+                local mirror = band(self.ctrlpf, 0x01) ~= 0
+                local mirrored = mirror and (19 - (tile - 20)) or (tile - 20)
+    
+                if mirrored < 4 then
+                    pos = mirrored + 4
+                    pixel = band(rshift(self.pf0, pos), 1)
+                elseif mirrored < 12 then
+                    pos = 7 - ((mirrored - 4) % 8)
+                    pixel = band(rshift(self.pf1, pos), 1)
+                else
+                    pos = (mirrored - 12) % 8
+                    pixel = band(rshift(self.pf2, pos), 1)
+                end
+            end
+    
+            self.frameBuffer[base + x] = pixel == 1 and pf or bg
+        end
+    
+        for bit = 7, 0, -1 do
+            if band(rshift(self.grp0, bit), 1) == 1 then
+                local px = self.resp0 + (7 - bit)
+                if px >= 0 and px < 160 then
+                    self.frameBuffer[base + px] = self.colup0
+                end
+            end
+        end
+    
+        for bit = 7, 0, -1 do
+            if band(rshift(self.grp1, bit), 1) == 1 then
+                local px = self.resp1 + (7 - bit)
+                if px >= 0 and px < 160 then
+                    self.frameBuffer[base + px] = self.colup1
+                end
+            end
+        end
+    
+        self.scanline = self.scanline + 1
+    end
+end
+
+if CLIENT then return end -- No more client
+
+util.AddNetworkString("tia_scanline_screen")
+
+function ENT:Initialize()
+	BaseClass.Initialize(self)
+	self:PhysicsInit(SOLID_VPHYSICS)
+	self:SetMoveType(MOVETYPE_VPHYSICS)
+	self:SetSolid(SOLID_VPHYSICS)
+    self.Inputs = Wire_CreateInputs(self, {"Port A", "Frequency", "Reset", "RF A/V Out"})
+    self.Outputs = Wire_CreateOutputs(self, {"Memory"})
+    self.RFScreens = {}
+    self.scanline = 0
+    self.colubk = 0
+    self.colupf = 0
+    self.colup0 = 0
+    self.colup1 = 0
+    self.vsync  = 0
+    self.vblank = 0
+    self.pf0 = 0
+    self.pf1 = 0
+    self.pf2 = 0
+    self.grp0 = 0
+    self.grp1 = 0
+    self.resp0 = 0
+    self.resp1 = 0
+    self.hmp0 = 0
+    self.hmp1 = 0
+    self.ctrlpf = 0
+end
 
 function ENT:Setup()
 	self:UpdateOverlayText()
@@ -39,10 +211,6 @@ end
 
 function ENT:BuildDupeInfo()
 	local info = BaseClass.BuildDupeInfo(self) or {}
-    info.riotTimer = self.riotTimer
-    info.riotDivider = self.riotDivider
-    info.riotCyclesLeft = self.riotCyclesLeft
-    info.riotInterrupt = self.riotInterrupt
 	return info
 end
 
@@ -52,177 +220,173 @@ end
 
 function ENT:TriggerInput(iname, value)
     if iname == "Frequency" then
-        self.riotFrequency = value
+    end
+    if iname == "RF A/V Out" then
+        local rf = self.Inputs["RF A/V Out"].Src
+        self.RFScreens = {}
+        if rf.TraceWriteDevices then
+            local devices = rf:TraceWriteDevices()
+            for _,device in ipairs(devices) do
+                if device.RFAVCapable then
+                    table.insert(self.RFScreens,device)
+                end
+            end
+        end
     end
 end
 
 function ENT:Think()
-    if self.riotDivider > 0 then
-        self.riotCyclesLeft = self.riotCyclesLeft - (self.riotFrequency or 0)
-
-        if self.riotCyclesLeft <= 0 then
-            self.riotTimer = self:To8(self.riotTimer - 1)
-
-            if self.riotTimer == 255 then
-                    self.riotInterrupt = true
-                    self.riotDivider = 1
-                end
-
-            self.riotCyclesLeft = self.riotCyclesLeft + self.riotDivider
-        end
-    end
 end
 
--- port A and port B read need to respect the direction masks
-function ENT:ReadPortA()
-    local port1 = self.Inputs["Port A"].Src
-    local mask = 0xFF
-    if port1 and port1:ReadCell(3) ~= 0 then mask = band(mask, bnot(0x10)) end
-    if port1 and port1:ReadCell(2) ~= 0 then mask = band(mask, bnot(0x20)) end
-    if port1 and port1:ReadCell(1) ~= 0 then mask = band(mask, bnot(0x40)) end
-    if port1 and port1:ReadCell(0) ~= 0 then mask = band(mask, bnot(0x80)) end
-
-    if port1 and port1:ReadCell(7) ~= 0 then mask = band(mask, bnot(0x01)) end
-    if port1 and port1:ReadCell(6) ~= 0 then mask = band(mask, bnot(0x02)) end
-    if port1 and port1:ReadCell(5) ~= 0 then mask = band(mask, bnot(0x04)) end
-    if port1 and port1:ReadCell(4) ~= 0 then mask = band(mask, bnot(0x08)) end
-    return mask
-end
-
-function ENT:ReadPortB()
-    local port2 = self.Inputs["Port B"].Src
-    local mask = 0xFF
-    if port2 and port2:ReadCell(0) ~= 0 then mask = band(mask, bnot(0x01)) end
-    if port2 and port2:ReadCell(1) ~= 0 then mask = band(mask, bnot(0x02)) end
-    if port2 and port2:ReadCell(2) ~= 0 then mask = band(mask, bnot(0x04)) end
-    if port2 and port2:ReadCell(3) ~= 0 then mask = band(mask, bnot(0x08)) end
-    if port2 and port2:ReadCell(4) ~= 0 then mask = band(mask, bnot(0x10)) end
-    if port2 and port2:ReadCell(5) ~= 0 then mask = band(mask, bnot(0x20)) end
-    if port2 and port2:ReadCell(6) ~= 0 then mask = band(mask, bnot(0x40)) end
-    if port2 and port2:ReadCell(7) ~= 0 then mask = band(mask, bnot(0x80)) end
-    return mask
-end
-
--- use the port direction masks for this
-function ENT:WritePortA(d) end
-function ENT:WritePortB(d) end
-
-function ENT:ReadInterrupt()
-    return self.riotInterrupt and 0x80 or 0x00
-end
 
 function ENT:ReadCell(index)
-    -- chipset 1 is bit 7
-    -- ram switch is bit 8, set ON to switch out of ram mode
-    -- chipset 2 is bit 9
-    local chip1 = bit.band(0x80,index) ~= 0
-    local ramswitch = bit.band(0x100,index) ~= 0
-    local chip2 = bit.band(0x200,index) ~= 0
-    if not chip1 and not chip2 then return 0 end
-    if chip1 then
-        index = index - 0x180
-        if not ramswitch then
-            return self.RAM[index]
+    if bit.band(index,128+256) then return 0 end
+    index = self:To8(index)
+    local port1 = self.Inputs["Port A"].Src
+    if port1 and port1.ReadCell then
+        if index == 0x0C then
+            return port1:ReadCell(0) ~= 0 and 0x00 or 0x80
         end
-        -- everything says it only cares about A2, A0
-        index = band(index,7)
-        if index == 0 then
-            return self:ReadPortA()
-        elseif index == 1 then
-           -- read direction pins for port A
-           return self.portAMask
-        elseif index == 2 then
-            return self:ReadPortB()
-        elseif index == 3 then
-            -- read direction pins for port B
-            return self.portBMask
-        elseif index >= 4 then
-            local oldIndex = index
-            index = band(index,5)
-            if index == 4 then
-                self.tInterruptEnabled = band(oldIndex,8) == 8
-                return self.riotTimer
-            elseif index == 5 then
-                return self:ReadInterrupt()
-            end
+
+        if index == 0x0D then
+            return port1:ReadCell(1) ~= 0 and 0x00 or 0x80
         end
-    elseif chip2 then
-        if index == 0x0 then return self:ReadPortA() end
-        if index == 0x1 then return self.portAMask end
-        if index == 0x2 then return self:ReadPortB() end
-        if index == 0x3 then return self.portBMask end
-        if index == 0x4 then
-            self.tInterruptEnabled = false
-            return self.riotTimer
-        end
-        if index == 0x5 then return self:ReadInterrupt() end
-        if index == 0xC then return self.riotTimer end
     end
-    return math.random(0,0xFF)
+    return 0
 end
 
-local dividers = {
-    [4] = 1,
-    [5] = 8,
-    [6] = 64,
-    [7] = 1024
-}
+function ENT:RenderScanlineToDevices()
+    local rf = self.Inputs["RF A/V Out"].Src
+    local backup = self:BackupTIAState()
+    for ind,i in ipairs(self.RFScreens) do
+        self:RestoreTIAState(backup)
+        net.Start("tia_scanline_screen")
+            net.WriteEntity(self)
+            net.WriteEntity(i)
+            for _,i in ipairs(backup) do
+                net.WriteInt(i,8)
+            end
+        net.SendPVS(i:GetPos())
+        self:RenderScanline(i)
+    end
+    if #self.RFScreens == 0 then
+        self:RestoreTIAState(backup)
+        if rf and rf.WriteCell then
+            self:RenderScanline(rf)
+        end
+    end
+    -- after last draw state should be finalized technically
+end
 
+local function writeFrameBuffer(device,addr,value)
+    if device.RFAVCapable then
+        device.FB[addr] = value
+    else
+        device:WriteCell(addr,value)
+    end
+end
 
+function ENT:RenderScanline(screen)
+    if self.scanline >= 192 then return end
 
-function ENT:WriteCell(index, value)
-    index = self:To8(index)
-    local chip1 = band(0x80,index) ~= 0
-    local ramswitch = band(0x100,index) ~= 0
-    local chip2 = band(0x200,index) ~= 0
-    if not chip1 and not chip2 then return end
-    if chip1 then
-        index = index - 0x180
-        if not ramswitch then
-            self.RAM[index] = value
-            return
-        end
-        if index == 0 then
-            return self:WritePortA(value)
-        end
-        if index == 1 then
-            self.portAMask = self:To8(value)
-            return
-        end
-        if index == 2 then
-            return self:WritePortB(value)
-        end
-        if index == 3 then
-            self.portBMask = self:To8(value)
-            return
-        end
-        local a4_a2 = band(index,20)
-        if a4_a2 == 4 then
-            self.PA7EdgeInterrupt = band(index,2) ~= 0
-            self.PA7EdgeDetectPositive = band(index,1) ~= 0
-            return
-        end
-        if a4_a2 == 20 then
-            self.tInterruptEnabled = bit.band(index,8) ~= 0
-            index = index - 20
-            if index == 4 then
-                self.riotTimer = value
-                self.riotCyclesLeft = value
-                self.riotDivider = 1
-            elseif index == 5 then
-                self.riotTimer = value
-                self.riotCyclesLeft = value * 8
-                self.riotDivider = 8
-            elseif index == 6 then
-                self.riotTimer = value
-                self.riotCyclesLeft = value * 64
-                self.riotDivider = 64
-            elseif index == 7 then
-                self.riotTimer = value
-                self.riotCyclesLeft = value * 1024
-                self.riotDivider = 1024
+    if band(self.vblank, 0x02) ~= 0 then
+        self.scanline = self.scanline + 1
+        return
+    end
+
+    local base = self.scanline * 160
+    local bg = self.colubk
+    local pf = self.colupf
+
+    for x = 0, 159 do
+        local tile = floor(x / 4)
+        local pixel = 0
+        local pos
+
+        if tile < 20 then
+            if tile < 4 then
+                pos = tile + 4
+                pixel = band(rshift(self.pf0, pos), 1)
+            elseif tile < 12 then
+                pos = 7 - ((tile - 4) % 8)
+                pixel = band(rshift(self.pf1, pos), 1)
+            else
+                pos = (tile - 12) % 8
+                pixel = band(rshift(self.pf2, pos), 1)
+            end
+        else
+            local mirror = band(self.ctrlpf, 0x01) ~= 0
+            local mirrored = mirror and (19 - (tile - 20)) or (tile - 20)
+
+            if mirrored < 4 then
+                pos = mirrored + 4
+                pixel = band(rshift(self.pf0, pos), 1)
+            elseif mirrored < 12 then
+                pos = 7 - ((mirrored - 4) % 8)
+                pixel = band(rshift(self.pf1, pos), 1)
+            else
+                pos = (mirrored - 12) % 8
+                pixel = band(rshift(self.pf2, pos), 1)
             end
         end
+
+        writeFrameBuffer(screen,base + x, pixel == 1 and pf or bg)
+    end
+
+    for bit = 7, 0, -1 do
+        if band(rshift(self.grp0, bit), 1) == 1 then
+            local px = self.resp0 + (7 - bit)
+            if px >= 0 and px < 160 then
+                writeFrameBuffer(screen, base + px, self.colup0)
+            end
+        end
+    end
+
+    for bit = 7, 0, -1 do
+        if band(rshift(self.grp1, bit), 1) == 1 then
+            local px = self.resp1 + (7 - bit)
+            if px >= 0 and px < 160 then
+                writeFrameBuffer(screen, base + px, self.colup1)
+            end
+        end
+    end
+
+    self.scanline = self.scanline + 1
+end
+
+function ENT:WriteCell(index, value)
+    if index == 0x00 then
+        self.vsync = value
+        if band(value, 0x02) ~= 0 then
+            self.scanline = 0
+        end
+    elseif index == 0x01 then self.vblank = value
+    elseif index == 0x02 then
+        local cycles = self.cycles % 76
+        self.cycles = self.cycles + (76 - cycles)
+        self:RenderScanlineToDevices()
+    elseif index == 0x06 then self.colup0 = value
+    elseif index == 0x07 then self.colup1 = value
+    elseif index == 0x08 then self.colupf = value
+    elseif index == 0x09 then self.colubk = value
+    elseif index == 0x0A then self.ctrlpf = value
+    elseif index == 0x0D then self.pf0 = value
+    elseif index == 0x0E then self.pf1 = value
+    elseif index == 0x0F then self.pf2 = value
+    elseif index == 0x10 then
+        self.resp0 = (self.cycles % 76) * 3 - 68
+    elseif index == 0x11 then
+        self.resp1 = (self.cycles % 76) * 3 - 68
+    elseif index == 0x1B then self.grp0 = value
+    elseif index == 0x1C then self.grp1 = value
+    elseif index == 0x20 then self.hmp0 = self:To4(rshift(value, 4))
+    elseif index == 0x21 then self.hmp1 = self:To4(rshift(value, 4))
+    elseif index == 0x2A then
+        self.resp0 = self.resp0 + self.hmp0
+        self.resp1 = self.resp1 + self.hmp1
+    elseif index == 0x2B then
+        self.hmp0 = 0
+        self.hmp1 = 0
     end
 end
 

@@ -724,38 +724,9 @@ function AVM:Reset()
     self.ps = bor(IF, UF)
     self.sp = 0xFD
     self.pc = self:MRead16(0xFFFC)
+    print(self.pc)
     self.cycles = 0
     self.extraCycles = 0
-
-
-
-    self.riotTimer = 0
-    self.riotDivider = 1
-    self.riotCyclesLeft = 0
-    self.riotInterrupt = false
-
-    for i=0, 160 * 192 do
-        self.frameBuffer[i] = 0
-    end
-
-    self.scanline = 0
-    self.colubk = 0
-    self.colupf = 0
-    self.colup0 = 0
-    self.colup1 = 0
-    self.vsync  = 0
-    self.vblank = 0
-    self.pf0 = 0
-    self.pf1 = 0
-    self.pf2 = 0
-    self.grp0 = 0
-    self.grp1 = 0
-    self.resp0 = 0
-    self.resp1 = 0
-    self.hmp0 = 0
-    self.hmp1 = 0
-    self.ctrlpf = 0
-    
 end
 
 function AVM:Step()
@@ -765,7 +736,6 @@ function AVM:Step()
         print(string.format("Unknown opcode %02X at %04X", opcode, self.pc - 1))
         return
     end
-    
     local cycles = instruction(self) + self.extraCycles
     self.extraCycles = 0
     self.cycles = self.cycles + cycles
@@ -850,77 +820,9 @@ function AVM:TIAWrite(index, value)
     end
 end
 
-function AVM:RenderScanline()
-    if self.scanline >= 192 then return end
-
-    if band(self.vblank, 0x02) ~= 0 then
-        self.scanline = self.scanline + 1
-        return
-    end
-
-    local base = self.scanline * 160
-    local bg = self.colubk
-    local pf = self.colupf
-
-    for x = 0, 159 do
-        local tile = floor(x / 4)
-        local pixel = 0
-        local pos
-
-        if tile < 20 then
-            if tile < 4 then
-                pos = tile + 4
-                pixel = band(rshift(self.pf0, pos), 1)
-            elseif tile < 12 then
-                pos = 7 - ((tile - 4) % 8)
-                pixel = band(rshift(self.pf1, pos), 1)
-            else
-                pos = (tile - 12) % 8
-                pixel = band(rshift(self.pf2, pos), 1)
-            end
-        else
-            local mirror = band(self.ctrlpf, 0x01) ~= 0
-            local mirrored = mirror and (19 - (tile - 20)) or (tile - 20)
-
-            if mirrored < 4 then
-                pos = mirrored + 4
-                pixel = band(rshift(self.pf0, pos), 1)
-            elseif mirrored < 12 then
-                pos = 7 - ((mirrored - 4) % 8)
-                pixel = band(rshift(self.pf1, pos), 1)
-            else
-                pos = (mirrored - 12) % 8
-                pixel = band(rshift(self.pf2, pos), 1)
-            end
-        end
-
-        self.frameBuffer[base + x] = pixel == 1 and pf or bg
-    end
-
-    for bit = 7, 0, -1 do
-        if band(rshift(self.grp0, bit), 1) == 1 then
-            local px = self.resp0 + (7 - bit)
-            if px >= 0 and px < 160 then
-                self.frameBuffer[base + px] = self.colup0
-            end
-        end
-    end
-
-    for bit = 7, 0, -1 do
-        if band(rshift(self.grp1, bit), 1) == 1 then
-            local px = self.resp1 + (7 - bit)
-            if px >= 0 and px < 160 then
-                self.frameBuffer[base + px] = self.colup1
-            end
-        end
-    end
-
-    self.scanline = self.scanline + 1
-end
-
 local blshift = bit.lshift
 
-AVM.New = function(AddressRemaps,ZeroPageMask)
+AVM.New = function(AddressRemaps)
     local vm = setmetatable({
         cycles = 0,
         extraCycles = 0,
@@ -931,7 +833,6 @@ AVM.New = function(AddressRemaps,ZeroPageMask)
         y = 0,
         ps = bor(IF, UF),
         bank = 0,
-        ZERO_PAGE_MASK = ZeroPageMask,
         frameBuffer = {},
         scanline = 0,
         colubk = 0,

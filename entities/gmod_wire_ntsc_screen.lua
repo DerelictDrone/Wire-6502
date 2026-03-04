@@ -76,8 +76,10 @@ function ENT:Initialize()
     for i=0,206718 do
         self.FB[i] = 0
     end
-    self.Inputs = Wire_CreateInputs(self, {"RF A/V In"})
-    self.Outputs = Wire_CreateOutputs(self, {})
+    self.Inputs = Wire_CreateInputs(self, {})
+    self.Outputs = Wire_CreateOutputs(self, {"RF A/V In"})
+    self.RFAVCapable = true
+    self.PVSCache = RecipientFilter()
 end
 
 function ENT:Setup()
@@ -97,16 +99,23 @@ end
 
 local byte = string.byte
 function ENT:Think()
-    local str = {}
-    for ind,i in ipairs(self.FB) do
-        table.insert(str,byte(i))
+    local f = RecipientFilter()
+    f:AddPVS(self:GetPos())
+    f:RemovePlayers(self.PVSCache)
+    if f:GetCount() > 0 then
+        local str = {}
+        for ind,i in ipairs(self.FB) do
+            table.insert(str,byte(i))
+        end
+        str = util.Compress(table.concat(str,""))
+        net.Start("ntsc_screen_frame",true)
+            net.WriteEntity(self)
+            net.WriteUInt(#str,2)
+            net.WriteData(str)
+        net.Send(f)
     end
-    str = util.Compress(table.concat(str,""))
-    net.Start("ntsc_screen_frame",true)
-        net.WriteEntity(self)
-        net.WriteUInt(#str,2)
-        net.WriteData(str)
-    net.SendPVS(self:GetPos())
+    self.PVSCache:RemoveAllPlayers()
+    self.PVSCache:AddPVS(self:GetPos())
 end
 
 function ENT:ReadCell(index)

@@ -15,7 +15,6 @@ TOOL.ClientConVar["dev1apins"] = "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
 TOOL.ClientConVar["dev2apins"] = "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
 TOOL.ClientConVar["dev3apins"] = "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
 TOOL.ClientConVar["dev4apins"] = "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
-TOOL.ClientConVar["zeropagemask"] = "0x80"
 
 if SERVER then
 	function TOOL:GetConVars()
@@ -23,8 +22,7 @@ if SERVER then
 		self:GetClientInfo("dev1apins"),
 		self:GetClientInfo("dev2apins"),
 		self:GetClientInfo("dev3apins"),
-		self:GetClientInfo("dev4apins"),
-		self:GetClientNumber("zeropagemask")
+		self:GetClientInfo("dev4apins")
 	end
 end
 
@@ -38,6 +36,4 @@ function TOOL.BuildCPanel(panel)
 	panel:AddControl("Textbox",{ Label = "D2 Address Pins", Command = "wire_6502_dev2apins" })
 	panel:AddControl("Textbox",{ Label = "D3 Address Pins", Command = "wire_6502_dev3apins" })
 	panel:AddControl("Textbox",{ Label = "D4 Address Pins", Command = "wire_6502_dev4apins" })
-
-	panel:AddControl("Textbox",{ Label = "Zero Page Mask", Command = "wire_6502_zeropagemask" })
 end
