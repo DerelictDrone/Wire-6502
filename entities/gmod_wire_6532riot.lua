@@ -20,7 +20,7 @@ function ENT:Initialize()
     for i=0,127 do
         self.RAM[i] = 0
     end
-    self.Inputs = Wire_CreateInputs(self, {"Port A", "Port B", "Frequency", "Reset"})
+    self.Inputs = Wire_CreateInputs(self, {"Port A", "Port B", "Cycle", "Reset"})
     self.Outputs = Wire_CreateOutputs(self, {"Memory", "Interrupt"})
 end
 
@@ -55,6 +55,10 @@ end
 function ENT:TriggerInput(iname, value)
     if iname == "Frequency" then
         self.riotFrequency = value
+    end
+    if iname == "Cycle" then
+        self.cycles = value
+        self.Inputs["Cycle"].TriggerLimit = 8
     end
 end
 

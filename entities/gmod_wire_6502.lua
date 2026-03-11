@@ -11,7 +11,7 @@ function ENT:Initialize()
 	self:SetMoveType(MOVETYPE_VPHYSICS)
 	self:SetSolid(SOLID_VPHYSICS)
 	self.Inputs = Wire_CreateInputs(self, {"CLK","Device 1", "Device 2", "Device 3", "Device 4", "Frequency", "Reset"})
-	self.Outputs = Wire_CreateOutputs(self, {"Interrupt"})
+	self.Outputs = Wire_CreateOutputs(self, {"Interrupt", "Cycle"})
 end
 
 function ENT:DeviceRead(index)
@@ -54,6 +54,11 @@ function ENT:DeviceWrite(index, value)
 	end
 end
 
+function ENT:UpdateCycles(cycles)
+	self.Outputs["Cycle"].TriggerLimit = 8
+	WireLib.TriggerOutput(self,"Cycle",cycles)
+end
+
 function ENT:TriggerInput(iname, value)
     if iname == "Frequency" then
         self.Frequency = value
@@ -73,6 +78,8 @@ end
 
 function ENT:Setup(d1pins,d2pins,d3pins,d4pins)
 	self:UpdateOverlayText()
+	-- we were likely just pasted so we'll try again later
+	if not d1pins then return end
 	local d1 = {}
 	local d2 = {}
 	local d3 = {}
@@ -90,6 +97,7 @@ function ENT:Setup(d1pins,d2pins,d3pins,d4pins)
 	for m in string.gmatch(d4pins,"%-*%d+") do
 		table.insert(d4,tonumber(m))
 	end
+	self.DPins = {d1pins,d2pins,d3pins,d4pins}
 	self.VM = AVM.New(DPins)
 	self.VM.DeviceRead = self.DeviceRead
 	self.VM.DeviceWrite = self.DeviceWrite
@@ -101,11 +109,13 @@ end
 
 function ENT:BuildDupeInfo()
 	local info = BaseClass.BuildDupeInfo(self) or {}
+	info.DPins = self.DPins
 	return info
 end
 
 function ENT:ApplyDupeInfo(ply, ent, info, GetEntByID)
 	BaseClass.ApplyDupeInfo(self, ply, ent, info, GetEntByID)
+	ent:Setup(info.DPins[1],info.DPins[2],info.DPins[3],info.DPins[4])
 	ent:UpdateOverlayText()
 end
 

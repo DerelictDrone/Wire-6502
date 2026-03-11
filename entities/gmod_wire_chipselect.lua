@@ -23,6 +23,8 @@ local rshift = bit.rshift
 local floor = math.floor
 
 function ENT:Setup(mask,partial,inverted)
+	-- we've just been pasted, set this up later
+	if not mask then return end
 	self.mask = mask
 	self.partial = partial
 	self.invertmask = inverted
@@ -55,7 +57,6 @@ function ENT:ReadCell(index)
 	if (self.partial and chipselect ~= 0) or chipselect == self.mask then
 		if self.invertmask then return 0 end
 		if self.Memory and self.Memory.ReadCell then
-			print("start address",index,"end address",band(index,self.inversemask))
 			return self.Memory:ReadCell(band(index,self.inversemask))
 		else
 			return 0
@@ -80,7 +81,7 @@ end
 
 function ENT:ApplyDupeInfo(ply, ent, info, GetEntByID)
 	BaseClass.ApplyDupeInfo(self, ply, ent, info, GetEntByID)
-	ent:UpdateOverlayText()
+	ent:Setup(info.mask,info.partial,info.invertmask)
 end
 
 duplicator.RegisterEntityClass("gmod_wire_chipselect", WireLib.MakeWireEnt, "Data")

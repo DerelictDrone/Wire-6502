@@ -18,6 +18,12 @@ local UF = 32 -- unused
 local OF = 64 -- overflow
 local NF = 128 -- negative
 
+function AVM:UpdateCycles(cycles)
+    if self.Entity and self.Entity.UpdateCycles then
+        self.Entity:UpdateCycles(cycles)
+    end
+end
+
 function AVM:SetFlag(flag, state)
     if state then
         self.ps = bor(self.ps, flag)
@@ -52,7 +58,7 @@ end
 
 function AVM:MRead8(index)
     index = self:To16(index)
-    return self:To8(self.DeviceRead(self.Entity,index))
+    return self.DeviceRead(self.Entity,index)
     -- if index == 0x1FF8 then
     --     self.bank = 0
     -- elseif index == 0x1FF9 then
@@ -738,6 +744,7 @@ function AVM:Step()
     local cycles = instruction(self) + self.extraCycles
     self.extraCycles = 0
     self.cycles = self.cycles + cycles
+    self:UpdateCycles(self.cycles)
 end
 
 function AVM:State()

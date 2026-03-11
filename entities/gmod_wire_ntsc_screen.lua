@@ -44,18 +44,18 @@ function ENT:Draw()
     local NTSC = TVColorStandards.NTSC
     self:DrawModel()
     local fb = self.FB
-    self.GPU:RenderToWorld(nil, 525, function(rx, ry, w, h, monitor, pos, ang, res)
-        for y = 0, 524 do
-            local base = y * 393
+    self.GPU:RenderToWorld(nil, 192, function(rx, ry, w, h, monitor, pos, ang, res)
+        for y = 0, 192 do
+            local base = y * 160
             local x = 0
-            while x < 393 do
+            while x < 160 do
                 local color = fb[base + x]
                 local runEnd = x + 1
-                while runEnd < 394 and fb[base + runEnd] == color do
+                while runEnd < 161 and fb[base + runEnd] == color do
                     runEnd = runEnd + 1
                 end
                 SetDrawColor(NTSC[rshift(band(color, 0xFE), 1) + 1])
-                DrawRect(x*(w/393), y, (runEnd - x)*(w/393), 1)
+                DrawRect(x*(w/160), y, (runEnd - x)*(w/160), 1)
                 x = runEnd
             end
         end

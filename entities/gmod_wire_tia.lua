@@ -103,7 +103,7 @@ if CLIENT then
             net.ReadInt(8),
             net.ReadInt(8),
         }
-        TIA:RestoreState(state)
+        TIA:RestoreTIAState(state)
         TIA:RenderScanline(screen)
     end)
     function ENT:RenderScanline(targetEnt)
@@ -150,14 +150,14 @@ if CLIENT then
                 end
             end
     
-            self.frameBuffer[base + x] = pixel == 1 and pf or bg
+            targetEnt.FB[base + x] = pixel == 1 and pf or bg
         end
     
         for bit = 7, 0, -1 do
             if band(rshift(self.grp0, bit), 1) == 1 then
                 local px = self.resp0 + (7 - bit)
                 if px >= 0 and px < 160 then
-                    self.frameBuffer[base + px] = self.colup0
+                    targetEnt.FB[base + px] = self.colup0
                 end
             end
         end
@@ -166,7 +166,7 @@ if CLIENT then
             if band(rshift(self.grp1, bit), 1) == 1 then
                 local px = self.resp1 + (7 - bit)
                 if px >= 0 and px < 160 then
-                    self.frameBuffer[base + px] = self.colup1
+                    targetEnt.FB[base + px] = self.colup1
                 end
             end
         end
@@ -184,7 +184,7 @@ function ENT:Initialize()
 	self:PhysicsInit(SOLID_VPHYSICS)
 	self:SetMoveType(MOVETYPE_VPHYSICS)
 	self:SetSolid(SOLID_VPHYSICS)
-    self.Inputs = Wire_CreateInputs(self, {"Port A", "Frequency", "Reset", "RF A/V Out"})
+    self.Inputs = Wire_CreateInputs(self, {"Port A", "Reset", "RF A/V Out", "Cycle"})
     self.Outputs = Wire_CreateOutputs(self, {"Memory"})
     self.cycles = 0
     self.RFScreens = {}
@@ -209,6 +209,7 @@ end
 
 function ENT:Setup()
 	self:UpdateOverlayText()
+    self:TriggerInput("RF A/V Out",0)
 end
 
 function ENT:UpdateOverlayText()
@@ -231,8 +232,10 @@ function ENT:TriggerInput(iname, value)
     if iname == "Frequency" then
     end
     if iname == "RF A/V Out" then
-        local rf = self.Inputs["RF A/V Out"].Src
+        local rf = self.Inputs["RF A/V Out"]
+        rf = rf and rf.Src
         self.RFScreens = {}
+        if not rf then return end
         if rf.TraceWriteDevices then
             local devices = rf:TraceWriteDevices()
             for _,device in ipairs(devices) do
@@ -241,28 +244,19 @@ function ENT:TriggerInput(iname, value)
                 end
             end
         end
+        if rf.RFAVCapable then
+            table.insert(self.RFScreens,rf)
+        end
+    end
+    if iname == "Cycle" then
+        self.cycles = value
+        self.Inputs["Cycle"].TriggerLimit = 8
     end
 end
 
 function ENT:Think()
 end
 
-
-function ENT:ReadCell(index)
-    if bit.band(index,128+256) then return 0 end
-    index = self:To8(index)
-    local port1 = self.Inputs["Port A"].Src
-    if port1 and port1.ReadCell then
-        if index == 0x0C then
-            return port1:ReadCell(0) ~= 0 and 0x00 or 0x80
-        end
-
-        if index == 0x0D then
-            return port1:ReadCell(1) ~= 0 and 0x00 or 0x80
-        end
-    end
-    return 0
-end
 
 function ENT:RenderScanlineToDevices()
     local rf = self.Inputs["RF A/V Out"].Src
@@ -277,12 +271,6 @@ function ENT:RenderScanlineToDevices()
             end
         net.SendPVS(i:GetPos())
         self:RenderScanline(i)
-    end
-    if #self.RFScreens == 0 then
-        self:RestoreTIAState(backup)
-        if rf and rf.WriteCell then
-            self:RenderScanline(rf)
-        end
     end
     -- after last draw state should be finalized technically
 end
@@ -363,7 +351,26 @@ function ENT:RenderScanline(screen)
     self.scanline = self.scanline + 1
 end
 
+function ENT:ReadCell(index)
+    if bit.band(index,128+256+4096) ~= 0 then return 0 end
+    index = bit.band(index,0x0F)
+    index = self:To8(index)
+    local port1 = self.Inputs["Port A"].Src
+    if port1 and port1.ReadCell then
+        if index == 0x0C then
+            return port1:ReadCell(0) ~= 0 and 0x00 or 0x80
+        end
+        if index == 0x0D then
+            return port1:ReadCell(1) ~= 0 and 0x00 or 0x80
+        end
+    end
+    return 0
+end
+
 function ENT:WriteCell(index, value)
+    if bit.band(index,128+256+4096) ~= 0 then return end
+    index = bit.band(index,63)
+    print(string.format("%x",index),value)
     if index == 0x00 then
         self.vsync = value
         if band(value, 0x02) ~= 0 then
